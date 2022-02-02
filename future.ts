@@ -1,4 +1,5 @@
 import { evaluate, K, Proc, reset, shift } from "./continuation.ts";
+import { lazy } from './lazy.ts';
 
 export type Result<T> = {
   type: "value";
@@ -31,7 +32,11 @@ export function createFuture<T>(): NewFuture<T> {
     }
     notifying = true;
     try {
-      for (let watcher = watchers.shift(); watcher; watcher = watchers.shift()) {
+      for (
+        let watcher = watchers.shift();
+        watcher;
+        watcher = watchers.shift()
+      ) {
         watcher!(result);
       }
     } finally {
@@ -58,24 +63,26 @@ export function createFuture<T>(): NewFuture<T> {
       },
     };
 
-    let promise = new Promise<T>((resolve, reject) => {
-      evaluate(function* () {
-        let result = yield* proc;
-        if (result.type === "value") {
-          resolve(result.value);
-        } else if (result.type === "error") {
-          reject(result.error);
-        } else {
-          reject(new Error("halt"));
-        }
-      });
-    });
+    let promise = lazy(() =>
+      new Promise<T>((resolve, reject) => {
+        evaluate(function* () {
+          let result = yield* proc;
+          if (result.type === "value") {
+            resolve(result.value);
+          } else if (result.type === "error") {
+            reject(result.error);
+          } else {
+            reject(new Error("halt"));
+          }
+        });
+      })
+    );
 
     let future: Future<T> = {
       ...proc,
-      then: (...args) => promise.then(...args),
-      catch: (...args) => promise.catch(...args),
-      finally: (...args) => promise.finally(...args),
+      then: (...args) => promise().then(...args),
+      catch: (...args) => promise().catch(...args),
+      finally: (...args) => promise().finally(...args),
       [Symbol.toStringTag]: "[object Future]",
     };
 
@@ -88,28 +95,29 @@ export function createFuture<T>(): NewFuture<T> {
     };
   });
 }
+
 export function resolve(): Future<void>;
 export function resolve<T>(value: T): Future<T>;
 export function resolve<T>(value?: T): Future<T> {
   let { produce, future } = createFuture<T>();
-  produce({ type: 'value', value: value as T });
+  produce({ type: "value", value: value as T });
   return future;
 }
 
 export function halt(): Future<void> {
   let { produce, future } = createFuture<void>();
-  produce({ type: 'halt' });
+  produce({ type: "halt" });
   return future;
 }
 
 export function reject(error: Error): Future<never> {
   let { produce, future } = createFuture<never>();
-  produce({ type: 'error', error });
+  produce({ type: "error", error });
   return future;
 }
 
 export const Future = {
   resolve,
   reject,
-  halt
-}
+  halt,
+};

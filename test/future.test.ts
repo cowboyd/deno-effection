@@ -40,8 +40,44 @@ Deno.test("`Future`", async (t) => {
   });
 
   await t.step("with multiple productions", async (t) => {
-    await t.step("can only be resolved to one value", () => {});
-    await t.step("cannot resolve after being rejected", () => {});
-    await t.step("cannot be rejected after being resolved", () => {});
-  })
+    await t.step("can only be resolved to one value", () => {
+      let { future, resolve } = createFuture<string>();
+      let results = [] as Result<string>[];
+      evaluate(function*() {
+        results.push(yield* future);
+      });
+      resolve('hello');
+      assertEquals([{ type: 'value', value: 'hello'}], results);
+
+      results = [];
+      resolve('world');
+      evaluate(function*() {
+        results.push(yield* future);
+      });
+      assertEquals([{ type: 'value', value: 'hello'}], results);
+    });
+
+    await t.step("cannot resolve after being rejected", () => {
+      let { future, resolve, reject } = createFuture<string>();
+      let results = [] as Result<string>[];
+      evaluate(function*() {
+        results.push(yield* future);
+      });
+      let error = new Error('boom!');
+      reject(error);
+      resolve('hello');
+      assertEquals([{ type: 'error', error }], results);
+    });
+
+    await t.step("cannot be rejected after being resolved", () => {
+      let { future, resolve, reject } = createFuture<string>();
+      let results = [] as Result<string>[];
+      evaluate(function*() {
+        results.push(yield* future);
+      });
+      resolve('hello');
+      reject(new Error('boom!'));
+      assertEquals([{ type: 'value', value: 'hello'}], results);
+    });
+  });
 });

@@ -7,17 +7,8 @@ Deno.test("run", async (t) => {
     await t.step("resolves with a value", async () => {
       assertEquals(5, await run(Future.resolve(5)));
     })
-    // await t.step("rejects with an error", () => {
-    //   assertRejects(() => run(Future.reject(createError('boom!'))));
-    // })
+    await t.step("rejects with an error", () => {
+      assertRejects(() => run(Future.reject(new Error('boom!'))));
+    })
   });
 });
-
-
-function createError(message: string): Error {
-  try {
-    throw new Error(message);
-  } catch (error) {
-    return error;
-  }
-}
