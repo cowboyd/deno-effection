@@ -12,7 +12,9 @@ export interface Scope extends Proc<void> {
   spawn<T>(operation: Operation<T>): Operation<Task<T>>;
 }
 
-export function run<T>(operation: Operation<T>, scope: Scope): Task<T> {
+export const root = createScope();
+
+export function run<T>(operation: Operation<T>, scope: Scope = root): Task<T> {
   return evaluate(function* () {
     let { future, produce, halt } = createFuture<T>();
 
@@ -31,16 +33,30 @@ export function run<T>(operation: Operation<T>, scope: Scope): Task<T> {
       };
     } else {
       yield* reset(function* () {
-        let current: unknown;
+        let getNext = () => operation.next();
         while (true) {
-          let next = operation.next(current);
-          if (next.done) {
-            produce({ type: 'value', value: next.value });
-          } else {
-            let child = createScope(scope);
-            let yieldingTo = run(next.value, child);
-            let result = yield* race([done(scope), yieldingTo]);
+          try {
+            let next = getNext();
 
+            if (next.done) {
+              produce({ type: 'value', value: next.value });
+            } else {
+              let child = createScope(scope);
+              let yieldingTo = run(next.value, child);
+              let result = yield* race([done(scope), yieldingTo]);
+              yield* destroy(child);
+              if (result.type === 'value') {
+                let { value } = result;
+                getNext = () => operation.next(value);
+              } else if (result.type === 'error') {
+                let { error } = result;
+                getNext = () => operation.throw(error);
+              } else {
+                getNext = () => operation.return(undefined as unknown as T);
+              }
+            }
+          } catch (error) {
+            return yield* raise(error, scope);
           }
         }
       });
@@ -51,7 +67,7 @@ export function run<T>(operation: Operation<T>, scope: Scope): Task<T> {
   });
 }
 
-function createScope(_parent: Scope) {
+function createScope(_parent?: Scope) {
   let scope: Scope = {
     // deno-lint-ignore require-yield
     *spawn<T>(operation: Operation<T>) {
@@ -69,7 +85,17 @@ function* done<T>(scope: Scope): Proc<Result<T>> {
   return { type: "halt" };
 }
 
-export declare function destroy(scope: Scope): Future<void>;
+export function link(_task: Task<unknown>, _scope: Scope): void {
+
+}
+
+function* raise(_error: Error, _scope: Scope): Proc<void> {
+
+}
+
+export function destroy(_scope: Scope): Future<void> {
+  return Future.resolve();
+}
 
 function isFuture<T>(operation: Operation<T>): operation is Future<T> {
   return typeof (operation as Future<unknown>)[Symbol.iterator] === `function`;

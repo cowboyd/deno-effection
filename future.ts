@@ -23,28 +23,38 @@ export interface NewFuture<T> {
 export function createFuture<T>(): NewFuture<T> {
   let result: Result<T>;
   let watchers: K<Result<T>>[] = [];
+  let notifying = false;
+
+  function* notify() {
+    if (notifying) {
+      return;
+    }
+    notifying = true;
+    try {
+      for (let watcher = watchers.shift(); watcher; watcher = watchers.shift()) {
+        watcher!(result);
+      }
+    } finally {
+      notifying = false;
+    }
+  }
 
   return evaluate<NewFuture<T>>(function* () {
     let produce = yield* reset<K<Result<T>, void>>(function* () {
       result = yield* shift<Result<T>>(function* (k) {
         return k;
       });
-      for (let notify = watchers.shift(); notify; notify = watchers.shift()) {
-        if (notify) {
-          notify(result);
-        }
-      }
+      yield* notify();
     });
 
     let proc: Proc<Result<T>> = {
       *[Symbol.iterator]() {
-        if (result) {
-          return result;
-        } else {
-          return yield* shift<Result<T>>(function* (k) {
-            watchers.push(k);
-          });
-        }
+        return yield* shift<Result<T>>(function* (k) {
+          watchers.push(k);
+          if (result) {
+            yield* notify();
+          }
+        });
       },
     };
 
@@ -79,44 +89,27 @@ export function createFuture<T>(): NewFuture<T> {
   });
 }
 export function resolve(): Future<void>;
-export function resolve<T>(): Future<T>;
-export function resolve<T>(...values: T extends undefined ? [] : [T]): Future<T> {
+export function resolve<T>(value: T): Future<T>;
+export function resolve<T>(value?: T): Future<T> {
   let { produce, future } = createFuture<T>();
-  let [value] = values;
   produce({ type: 'value', value: value as T });
   return future;
 }
 
-export const Future = {
-  resolve
+export function halt(): Future<void> {
+  let { produce, future } = createFuture<void>();
+  produce({ type: 'halt' });
+  return future;
 }
-// export function* createDestiny<T>(): Prog<NewDestiny<T>> {
-//   let outcome: Outcome<T>;
-//   let watchers: Continuation<Outcome<T>>[] = [];
 
-//   let fulfill = yield* reset<Continuation<Outcome<T>>>(function*() {
-//     outcome = yield* shift<Outcome<T>>(function*(k) { return k; });
+export function reject(error: Error): Future<never> {
+  let { produce, future } = createFuture<never>();
+  produce({ type: 'error', error });
+  return future;
+}
 
-//     for (let k = watchers.shift(); k; k = watchers.shift()) {
-//       if (!!k) {
-//         k(outcome);
-//       }
-//     }
-//   });
-
-//   let destiny: Destiny<T> = {
-//     *[Symbol.iterator]() {
-//       if (outcome) {
-//         return outcome;
-//       } else {
-//         return yield* shift<Outcome<T>>(function*(k) { watchers.push(k); });
-//       }
-//     }
-//   }
-
-//   return {
-//     destiny,
-//     fulfill,
-//     *[Symbol.iterator]() { return yield* destiny; }
-//   };
-// }
+export const Future = {
+  resolve,
+  reject,
+  halt
+}
