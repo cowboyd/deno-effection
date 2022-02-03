@@ -1,16 +1,6 @@
 import { evaluate, K, Proc, reset, shift } from "./continuation.ts";
 import { lazy } from './lazy.ts';
 
-export type Result<T> = {
-  type: "value";
-  value: T;
-} | {
-  type: "error";
-  error: Error;
-} | {
-  type: "halt";
-};
-
 export interface Future<T> extends Promise<T>, Proc<Result<T>> {}
 
 export interface NewFuture<T> {
@@ -20,6 +10,16 @@ export interface NewFuture<T> {
   halt: K<void>;
   produce: K<Result<T>>;
 }
+
+export type Result<T> = {
+  type: "value";
+  value: T;
+} | {
+  type: "error";
+  error: Error;
+} | {
+  type: "halt";
+};
 
 export function createFuture<T>(): NewFuture<T> {
   let result: Result<T>;
@@ -83,7 +83,7 @@ export function createFuture<T>(): NewFuture<T> {
       then: (...args) => promise().then(...args),
       catch: (...args) => promise().catch(...args),
       finally: (...args) => promise().finally(...args),
-      [Symbol.toStringTag]: "[object Future]",
+      [Symbol.toStringTag]: "Future",
     };
 
     return {
@@ -116,8 +116,14 @@ export function reject(error: Error): Future<never> {
   return future;
 }
 
+export function suspend(): Future<never> {
+  let { future } = createFuture<never>();
+  return future;
+}
+
 export const Future = {
   resolve,
   reject,
   halt,
+  suspend,
 };
