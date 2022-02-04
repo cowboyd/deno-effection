@@ -6,7 +6,7 @@ export type { Future, NewFuture, Result } from "./future.ts";
 
 // Operations
 // deno-lint-ignore no-explicit-any
-type OperationFn<T> = () => Generator<Operation<any>, T, any>;
+export type OperationFn<T> = () => Generator<Operation<any>, T, any>;
 
 declare global {
   const SymbolOperation: unique symbol;
@@ -20,7 +20,7 @@ export interface Operator<T> extends Record<string | number | symbol, unknown> {
   [operation](): Operation<T>;
 }
 
-export type Operation<T> = Future<T> | OperationFn<T>;
+export type Operation<T> = Future<T> | OperationFn<T> | Operator<T>;
 
 // Task
 export interface Task<T> extends Future<T> {
@@ -30,4 +30,10 @@ export interface Task<T> extends Future<T> {
 // Scope
 // deno-lint-ignore no-empty-interface
 export interface Scope extends Proc<void> {
+}
+
+export interface Context {
+  parent?: Scope;
+  tasks: Set<Task<unknown>>;
+  children: Set<Scope>;
 }
