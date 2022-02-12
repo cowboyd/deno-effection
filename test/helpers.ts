@@ -1,41 +1,44 @@
-import { Operation } from "../api.ts";
-import { createFuture, Future } from "../future.ts";
+import { createFuture, Future, Operation, operation } from "../mod.ts";
 
 export function sleep(time: number): Operation<void> {
-  return function*() {
-    let { future, resolve } = createFuture<void>();
-    let timeoutId = setTimeout(() => {
-      resolve();
-    }, time);
-    try {
-      yield future;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  // evaluate(function*() {
-  //   yield* future;
-  //   clearTimeout(timeoutId);
-  // });
-
-  // return future;
+  return {
+    name: "sleep",
+    time,
+    *[operation]() {
+      let { future, resolve } = createFuture<void>();
+      let timeoutId = setTimeout(() => {
+        resolve();
+      }, time);
+      try {
+        yield future;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    },
+  };
 }
 
 export function suspend(): Operation<void> {
-  return Future.suspend();
+  return { name: "suspend", [operation]: Future.suspend() };
 }
 
 export function createNumber(value: number) {
-  return function*() {
-    yield sleep(1);
-    return value;
-  }
+  return {
+    name: "createNumber",
+    value,
+    *[operation]() {
+      yield sleep(1);
+      return value;
+    },
+  };
 }
 
 export function blowUp(): Operation<void> {
-  return function* () {
-    yield sleep(1);
-    throw new Error("boom");
+  return {
+    name: "blowUp",
+    *[operation]() {
+      yield sleep(1);
+      throw new Error("boom");
+    },
   };
 }

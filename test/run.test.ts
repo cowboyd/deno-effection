@@ -1,7 +1,7 @@
 import {
   assertEquals,
   assertRejects,
-} from "https://deno.land/std@0.123.0/testing/asserts.ts";
+} from "./asserts.ts";
 import { createFuture, Future } from "../future.ts";
 import { run } from "../scope.ts";
 import { blowUp, createNumber, sleep, suspend } from "./helpers.ts";
@@ -99,6 +99,7 @@ test('can recover from errors in Future', async () => {
     try {
       yield Future.reject(error);
       two = 9;
+    // deno-lint-ignore no-unused-vars
     } catch(e) {
       // swallow error and yield in catch block
       two = yield Future.resolve(8);
@@ -116,6 +117,7 @@ test('can recover from errors in operation', async () => {
     try {
       yield blowUp();
       two = 9;
+    // deno-lint-ignore no-unused-vars
     } catch(e) {
       // swallow error and yield in catch block
       two = yield Future.resolve(8);
@@ -139,20 +141,18 @@ test('can halt generator', async () => {
 });
 
 // test('halts task when halted generator', async () => {
-//   let child: Task | undefined;
+//   let child: Task<void>;
 //   let task = run(function*() {
-//     yield function*(scope: Scope) {
-//       child = task;
+//     yield function*() {
+//       child = yield spawn(suspend());
 //       yield sleep(100);
 //     };
 //   });
 
 //   task.halt();
 
-//   await expect(task).rejects.toHaveProperty('message', 'halted');
-//   await expect(child).rejects.toHaveProperty('message', 'halted');
-//   expect(task.state).toEqual('halted');
-//   expect(child && child.state).toEqual('halted');
+//   await assertRejects(() => task, Error, 'halt');
+//   await assertRejects(() => child, Error, 'halt');
 // });
 
 test('can suspend in finally block', async () => {
@@ -182,7 +182,7 @@ test('can suspend in finally block', async () => {
 //           yield suspend();
 //         } finally {
 //           yield sleep(5);
-//           things.push("first");
+//           things.push("  first");
 //         }
 //       };
 //     } finally {

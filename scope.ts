@@ -1,11 +1,10 @@
 import { evaluate, K, Proc, race, reset, shift } from "./continuation.ts";
-import { createFuture, Future } from "./future.ts";
+import { createFuture, Future, Result } from "./future.ts";
 import type {
   Context,
   Operation,
   OperationFn,
   Operator,
-  Result,
   Scope,
   Task,
 } from "./api.ts";
@@ -121,7 +120,7 @@ function* createController<T>(
 }
 
 function isOperator<T>(operation: Operation<T>): operation is Operator<T> {
-  return operation && $operation in operation;
+  return operation && typeof (operation as Operator<T>)[$operation] !== 'undefined';
 }
 
 function* createOperatorController<T>(
@@ -130,7 +129,7 @@ function* createOperatorController<T>(
   settle: K<Result<T>>,
   scope: Scope,
 ): Proc<Task<T>["halt"]> {
-  return yield* createController(future, operator[$operation](), settle, scope);
+  return yield* createController(future, operator[$operation], settle, scope);
 }
 
 function isFuture<T>(operation: Operation<T>): operation is Future<T> {
@@ -168,6 +167,7 @@ function* createGeneratorController<T>(
     try {
       while (true) {
         let next = getNext();
+
         if (next.done) {
           settleWith(next.value);
           break;

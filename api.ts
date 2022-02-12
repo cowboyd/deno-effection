@@ -1,9 +1,6 @@
 import type { Proc } from "./continuation.ts";
 import type { Future } from "./future.ts";
 
-// Futures
-export type { Future, NewFuture, Result } from "./future.ts";
-
 // Operations
 // deno-lint-ignore no-explicit-any
 export type OperationFn<T> = () => Generator<Operation<any>, T, any>;
@@ -17,7 +14,7 @@ export const operation: typeof SymbolOperation = Symbol.for(
 ) as unknown as typeof SymbolOperation;
 
 export interface Operator<T> extends Record<string | number | symbol, unknown> {
-  [operation](): Operation<T>;
+  [operation]: Operation<T>;
 }
 
 export type Operation<T> = Future<T> | OperationFn<T> | Operator<T>;
