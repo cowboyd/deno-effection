@@ -27,10 +27,39 @@ export interface Task<T> extends Future<T> {
 // Scope
 // deno-lint-ignore no-empty-interface
 export interface Scope extends Proc<void> {
+  //spawn<T>(operation: Operation<T>): Task<T>;
 }
 
 export interface Context {
+  id: number;
   parent?: Scope;
   tasks: Set<Task<unknown>>;
   children: Set<Scope>;
+  listeners: Set<EvalEventListener>;
+}
+
+export interface EvalEventListener {
+  (event: EvalEvent): Proc<void>;
+}
+
+export type EvalEventType =
+  | "scopecreated"
+  | "scopedestroying"
+  | "scopedestroyed"
+  | "tasklink"
+  | "taskunlink"
+  | "scoperaise"
+  | "taskcreated"
+  | "taskinterrupted"
+  | "tasksettled"
+  | "taskyield";
+
+export interface EvalEvent {
+  type: EvalEventType;
+}
+
+export interface ScopeEvent {
+  type: "scopecreated" | "scopedestroying" | "scopedestroyed" | "scoperaise"
+  scope: Scope;
+  context: Context;
 }

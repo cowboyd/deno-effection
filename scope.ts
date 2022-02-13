@@ -2,6 +2,8 @@ import { evaluate, K, Proc, race, reset, shift } from "./continuation.ts";
 import { createFuture, Future, Result } from "./future.ts";
 import type {
   Context,
+  EvalEvent,
+  EvalEventListener,
   Operation,
   OperationFn,
   Operator,
@@ -47,27 +49,33 @@ function link(task: Task<unknown>, scope: Scope): void {
   });
 }
 
+let ids = 0;
+
 const contexts = new WeakMap<Scope, Context>();
 
-export const root: Scope = {
-  *[Symbol.iterator]() {
-    yield* shift(function* () {});
-  },
-};
+export const root = newScope();
 
-contexts.set(root, { tasks: new Set(), children: new Set() });
-
-function createScope(parent: Scope = root) {
+function newScope(parent?: Scope) {
   let scope: Scope = {
     *[Symbol.iterator]() {
       yield* shift(function* () {});
     },
   };
-
-  contexts.set(scope, { parent, tasks: new Set(), children: new Set() });
-  withinContext(parent, ({ children }) => children.add(scope));
-
+  contexts.set(scope, {
+    id: ids++,
+    parent,
+    tasks: new Set(),
+    children: new Set(),
+    listeners: new Set(),
+  })
+  if (parent) {
+    withinContext(parent, ({ children }) => children.add(scope));
+  }
   return scope;
+}
+
+function createScope(parent: Scope = root) {
+  return newScope(parent);
 }
 
 function* destroy(scope: Scope): Proc<Result<void>> {
@@ -120,7 +128,8 @@ function* createController<T>(
 }
 
 function isOperator<T>(operation: Operation<T>): operation is Operator<T> {
-  return operation && typeof (operation as Operator<T>)[$operation] !== 'undefined';
+  return operation &&
+    typeof (operation as Operator<T>)[$operation] !== "undefined";
 }
 
 function* createOperatorController<T>(
@@ -224,4 +233,43 @@ function* createGeneratorController<T>(
     });
     return halted;
   };
+}
+
+export function addEvalEventListener(
+  scope: Scope,
+  listener: EvalEventListener,
+): () => void {
+  return withinContext(scope, ({ listeners }) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  });
+}
+
+function* dispatchEvalEvent(scope: Scope, event: EvalEvent): Proc<void> {
+  for (let current of ancestryOf(scope)) {
+    let { listeners } = withinContext(current, cx => cx);
+    for (let listener of listeners) {
+      if (listeners.has(listener)) {
+        try {
+          yield* listener(event);
+        } catch (e) {
+          console.warn(`not good: error '${e}' thrown in evaluation listener`);
+        }
+      }
+    }
+  }
+}
+
+function ancestryOf(scope: Scope): Scope[] {
+  let scopes = [scope] as Scope[];
+  while (true) {
+    let parent = withinContext(scope, scope => scope.parent);
+    if (parent) {
+      scopes.push(parent);
+    } else {
+      return scopes;
+    }
+  }
 }
